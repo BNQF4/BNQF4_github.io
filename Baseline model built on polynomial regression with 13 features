@@ -1,4 +1,4 @@
-Baseline model built on polynomial regression with 13 features
+# Baseline model built on polynomial regression with 13 features
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
