@@ -1,0 +1,133 @@
+# Model built on random forest with feature augmentation to 33 features (Under ‘Scheme 1’)
+
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import learning_curve
+# Load the dataset
+df = pd.read_excel('D:/Users/admin/Desktop/Original Dataset.xlsx')
+# Check for NaN values in each column
+nan_columns = df.columns[df.isnull().any()].tolist()
+print("Columns containing NaN values:")
+print(nan_columns)
+# A few columns that I didn't find useful have been deleted
+data = df.drop(['MaterialFormula','Rate Capability', 'c rate', 'MO6 Octahedra', 'MO4 Tetrahedra', 'Reference'], axis = 1).copy()
+# Check for NaN values in each column
+nan_columns = data.columns[data.isnull().any()].tolist()
+print("Columns containing NaN values:")
+print(nan_columns)
+#Fill up the null values with 0 in numeric features 
+columns_to_fill_with_0 = ['Dopant Ratio', 'Nb Ratio', 'O Ratio',
+       'Molecular Weight', 'Initial discharge capacity',
+       'Initial charge capacity', 'First Cycle Coulombic efficiency', 'Capacity Retention',
+       'Cycles', 'C rate', 'Theoretical Capacity', 'Current Density', 'a(Å)', 'b(Å)',
+       'c(Å)', 'UnitCellVolume',
+       ' Li-ion Diffusion Coefficient on discharging (Lithiation)',
+       'Li-ion Diffusion Coefficient on charging (Delithiation)',
+       ' Electronic Conductivity (S cm-1)',
+       'BET specific surface area (m^2 g-1)', 'Calcination Temp', 'Synthesize Time', 
+        'Min Working Potential', 'Max Working Potential', 'Testing Temp']
+# Fill NaN values in specified columns with 0
+data[columns_to_fill_with_0] = data[columns_to_fill_with_0].fillna(0)
+#Fill up the NaN values with the most frequently occurring ones in categorical features
+# Columns to fill NaN values with the most frequent value
+columns_to_fill_with_most_frequent = ['Microstructure', 'Space Group', 'Starting Materials', 'Reaction Atmosphere', 'Preparation Method']
+# Fill NaN values in specified columns with the most frequent value
+for column in columns_to_fill_with_most_frequent:
+    most_frequent_value = data[column].mode().iloc[0]
+    data[column] = data[column].fillna(most_frequent_value)
+# Save this processed dataset as preprocessed_stage3_dataset
+save_location = ' D:/Users/admin/Desktop/preprocessed_stage3_dataset.xlsx'
+data.to_excel(save_location, index=False)
+# Load the new dataset
+data_new = pd.read_excel(' D:/Users/admin/Desktop/preprocessed_stage3_dataset.xlsx ')
+# Assuming 'Capacity Retention' is the target variable, and other columns are features
+X = data_new.drop(columns=['Capacity Retention'])
+y = data_new['Capacity Retention']
+# Perform one-hot encoding for categorical variables
+X_encoded = pd.get_dummies(X, columns=['Dopant', 'Microstructure', 'Space Group', 'Starting Materials', 'Reaction Atmosphere', 'Preparation Method', 'Testing Temp'])
+# Split the encoded data into training and testing sets
+X_train_encoded, X_test_encoded, y_train, y_test = train_test_split(X_encoded, y, test_size=0.2, random_state=2205634)
+# Create and train the Random Forest model on the encoded data
+forest_model = RandomForestRegressor(n_estimators=100, random_state=42)  # You can adjust the number of estimators as needed
+forest_model.fit(X_train_encoded, y_train)
+# Make predictions on the training set
+y_train_pred_forest = forest_model.predict(X_train_encoded)
+mse_train_forest = mean_squared_error(y_train, y_train_pred_forest)
+r2_train_forest = r2_score(y_train, y_train_pred_forest)
+# Make predictions on the test set
+y_test_pred_forest = forest_model.predict(X_test_encoded)
+mse_test_forest = mean_squared_error(y_test, y_test_pred_forest)
+r2_test_forest = r2_score(y_test, y_test_pred_forest)
+print("Random Forest - Training Mean Squared Error:", mse_train_forest)
+print("Random Forest - Training R-squared:", r2_train_forest)
+print("Random Forest - Test Mean Squared Error:", mse_test_forest)
+print("Random Forest - Test R-squared:", r2_test_forest)
+# Calculate Root Mean Squared Error (RMSE)
+rmse_train_forest = np.sqrt(mse_train_forest)
+rmse_test_forest = np.sqrt(mse_test_forest)
+# Calculate Mean Absolute Error (MAE)
+mae_train_forest = np.mean(np.abs(y_train - y_train_pred_forest))
+mae_test_forest = np.mean(np.abs(y_test - y_test_pred_forest))
+# Print the RMSE and MAE
+print("Random Forest - Training Root Mean Squared Error:", rmse_train_forest)
+print("Random Forest - Test Root Mean Squared Error:", rmse_test_forest)
+print("Random Forest - Training Mean Absolute Error:", mae_train_forest)
+print("Random Forest - Test Mean Absolute Error:", mae_test_forest)
+# Get feature importances from the trained Random Forest model
+feature_importances = forest_model.feature_importances_
+# Create a DataFrame to hold feature names and their importances
+feature_importance_df = pd.DataFrame({'Feature': X_train_encoded.columns, 'Importance': feature_importances})
+
+# Sort the DataFrame by importance values in descending order
+feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
+# Select the top 15 features
+top_features = feature_importance_df.head(25)
+# Plotting the top 15 feature importances
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Importance', y='Feature', data=top_features)
+plt.xlabel('Importance')
+plt.ylabel('Feature')
+plt.title('Top 15 Random Forest Feature Importances')
+plt.show()
+# Calculate R-squared values
+r2_values = [r2_train_forest, r2_test_forest]
+data_labels = ['Training', 'Test']
+# Plot bar chart with green color for the test set
+plt.bar(data_labels, r2_values, color=['blue', 'green'])
+plt.ylim(0, 1)  # Set y-axis limit from 0 to 1 (R-squared ranges from 0 to 1)
+plt.xlabel('Dataset')
+plt.ylabel('R-squared')
+plt.title('Random Forest Model - R-squared on Training and Test Sets')
+plt.show()
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import learning_curve
+# Create the learning curve for the Random Forest model
+train_sizes, train_scores, test_scores = learning_curve(
+    forest_model, X_train_encoded, y_train, cv=5, scoring='r2', n_jobs=-1)
+# Calculate mean and standard deviation for training and test scores
+train_scores_mean = np.mean(train_scores, axis=1)
+train_scores_std = np.std(train_scores, axis=1)
+test_scores_mean = np.mean(test_scores, axis=1)
+test_scores_std = np.std(test_scores, axis=1)
+# Plot the learning curve
+plt.figure(figsize=(10, 6))
+plt.plot(train_sizes, train_scores_mean, 'o-', color='r', label='Training R-squared')
+plt.fill_between(train_sizes, train_scores_mean - train_scores_std, train_scores_mean + train_scores_std, alpha=0.1, color='r')
+plt.plot(train_sizes, test_scores_mean, 'o-', color='g', label='Test R-squared')
+plt.fill_between(train_sizes, test_scores_mean - test_scores_std, test_scores_mean + test_scores_std, alpha=0.1, color='g')
+plt.xlabel("Training Set Size")
+plt.ylabel("R-squared")
+plt.title("Random Forest Model - Learning Curve")
+plt.legend(loc='best')
+plt.grid(True)
+plt.show()
