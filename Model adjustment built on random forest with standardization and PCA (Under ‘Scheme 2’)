@@ -1,0 +1,105 @@
+# Model adjustment built on random forest with standardization and PCA (Under ‘Scheme 2’)
+
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import learning_curve
+from sklearn.model_selection import GridSearchCV
+# Load the dataset
+df = pd.read_excel('D:/Users/admin/Desktop/Original Dataset.xlsx')
+# Check for NaN values in each column
+nan_columns = df.columns[df.isnull().any()].tolist()
+print("Columns containing NaN values:")
+print(nan_columns)
+# A few columns that I didn't find useful have been deleted
+data = df.drop(['MaterialFormula','Rate Capability', 'c rate', 'MO6 Octahedra', 'MO4 Tetrahedra', 'Testing Temp', 'Reference'], axis = 1).copy()
+# Check for NaN values in each column
+nan_columns = data.columns[data.isnull().any()].tolist()
+print("Columns containing NaN values:")
+print(nan_columns)
+# Fill up the NaN values with medians for numeric features
+columns_to_fill_with_median = ['Dopant Ratio', 'Nb Ratio', 'O Ratio',
+       'Molecular Weight', 'Initial discharge capacity',
+       'Initial charge capacity', 'First Cycle Coulombic efficiency', 'Capacity Retention',
+       'Cycles', 'C rate', 'Theoretical Capacity', 'Current Density', 'a(Å)', 'b(Å)',
+       'c(Å)', 'UnitCellVolume',
+       ' Li-ion Diffusion Coefficient on discharging (Lithiation)',
+       'Li-ion Diffusion Coefficient on charging (Delithiation)',
+       ' Electronic Conductivity (S cm-1)',
+       'BET specific surface area (m^2 g-1)', 'Calcination Temp', 'Synthesize Time', 
+        'Min Working Potential', 'Max Working Potential']
+
+# Calculate median values for numeric columns
+median_values = data[columns_to_fill_with_median].median(numeric_only=True)
+
+# Fill NaN values in specified columns with the respective median values
+data[columns_to_fill_with_median] = data[columns_to_fill_with_median].fillna(median_values)
+# Fill NaN values in specified columns with the most frequent value
+# Columns to fill NaN values with the most frequent value
+columns_to_fill_with_most_frequent = ['Microstructure', 'Space Group', 'Starting Materials', 'Reaction Atmosphere', 'Preparation Method']
+# Fill NaN values in specified columns with the most frequent value
+for column in columns_to_fill_with_most_frequent:
+    most_frequent_value = data[column].mode().iloc[0]
+    data[column] = data[column].fillna(most_frequent_value)
+# Save this processed dataset as preprocessed_stage4_dataset
+save_location = ' D:/Users/admin/Desktop/preprocessed_stage4_dataset.xlsx'
+data.to_excel(save_location, index=False)
+# Load the new dataset
+df = pd.read_excel('D:/Users/admin/Desktop/preprocessed_stage4_dataset.xlsx ')
+# Split the dataset into features (X) and target (y)
+X = df.drop(columns=['Capacity Retention'])
+y = df['Capacity Retention']
+
+# Apply one-hot encoding to categorical features
+categorical_columns = ['Dopant', 'Microstructure', 'Space Group', 'Starting Materials', 'Reaction Atmosphere', 'Preparation Method']
+X_categorical = df[categorical_columns]
+X_categorical_encoded = pd.get_dummies(X_categorical, drop_first=True)
+
+X_numeric = df.drop(columns=categorical_columns + ['Capacity Retention'])
+X_combined = pd.concat([X_numeric, X_categorical_encoded], axis=1)
+
+# Split the data into training and test sets
+X_train_combined, X_test_combined, y_train, y_test = train_test_split(X_combined, y, test_size=0.2, random_state=2205634)
+# Standardization
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train_combined)
+X_test_scaled = scaler.transform(X_test_combined)
+#PCA
+n_components = 2
+pca = PCA(n_components=n_components)
+X_train_pca = pca.fit_transform(X_train_scaled)
+X_test_pca = pca.transform(X_test_scaled)
+# Build a Random Forest Regressor
+forest_model = RandomForestRegressor(random_state=1023)
+# Fit the model to the PCA-transformed training data
+forest_model.fit(X_train_pca, y_train)
+
+# Make predictions using the trained model on the PCA-transformed training set
+y_train_pred = forest_model.predict(X_train_pca)
+# Calculate RMSE and R-squared for the training set
+train_rmse = np.sqrt(mean_squared_error(y_train, y_train_pred))
+train_r2 = r2_score(y_train, y_train_pred)
+train_mse = mean_squared_error(y_train, y_train_pred)
+# Make predictions using the trained model on the PCA-transformed test set
+y_test_pred = forest_model.predict(X_test_pca)
+# Calculate RMSE and R-squared for the test set
+test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+test_r2 = r2_score(y_test, y_test_pred)
+test_mse = mean_squared_error(y_test, y_test_pred)
+print("Training Set:")
+print(f"RMSE: {train_rmse}")
+print(f"MSE: {train_mse}")
+print(f"R-squared: {train_r2}")
+print("\nTest Set:")
+print(f"RMSE: {test_rmse}")
+print(f"MSE: {test_mse}")
+print(f"R-squared: {test_r2}")
+
